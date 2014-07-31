@@ -2040,12 +2040,13 @@ parseYieldExpression: true
             };
         },
 
-        createExportDeclaration: function (declaration, specifiers, source) {
+        createExportDeclaration: function (declaration, specifiers, source, isDefault) {
             return {
                 type: Syntax.ExportDeclaration,
                 declaration: declaration,
                 specifiers: specifiers,
-                source: source
+                source: source,
+                default: isDefault
             };
         },
 
@@ -3485,16 +3486,11 @@ parseYieldExpression: true
             case 'var':
             case 'class':
             case 'function':
-                return markerApply(marker, delegate.createExportDeclaration(parseSourceElement(), null, null));
+                return markerApply(marker, delegate.createExportDeclaration(parseSourceElement(), null, null, false));
+            case 'default':
+                expectKeyword('default');
+                return markerApply(marker, delegate.createExportDeclaration(parseAssignmentExpression(), null, null, true));
             }
-        }
-
-        if (isIdentifierName(lookahead)) {
-            previousAllowKeyword = state.allowKeyword;
-            state.allowKeyword = true;
-            decl = parseVariableDeclarationList('let');
-            state.allowKeyword = previousAllowKeyword;
-            return markerApply(marker, delegate.createExportDeclaration(decl, null, null));
         }
 
         specifiers = [];
@@ -3520,7 +3516,7 @@ parseYieldExpression: true
 
         consumeSemicolon();
 
-        return markerApply(marker, delegate.createExportDeclaration(null, specifiers, src));
+        return markerApply(marker, delegate.createExportDeclaration(null, specifiers, src, false));
     }
 
     function parseImportDeclaration() {
