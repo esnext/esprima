@@ -7657,6 +7657,24 @@ parseYieldExpression: true, parseAwaitExpression: true
                 });
             }
 
+			if (options.index) {
+				extra.index = {};
+				var indexDelegateMethods = {};
+				for (var i = 0, len = options.index.length; i < len; i++) {
+					var indexedType = options.index[i];
+					var createMethodName = 'create' + indexedType;
+					extra.index[indexedType] = [];
+					indexDelegateMethods[createMethodName] = (function(createNode) {
+						return function() {
+							var node = createNode.apply(this, arguments);
+							extra.index[node.type].push(node);
+							return node;
+						};
+					})(delegate[createMethodName]);
+				}
+				delegate = extend(delegate, indexDelegateMethods);
+			}
+
             if (options.sourceType === 'module') {
                 extra.isModule = true;
             }
@@ -7691,6 +7709,9 @@ parseYieldExpression: true, parseAwaitExpression: true
             if (typeof extra.errors !== 'undefined') {
                 program.errors = extra.errors;
             }
+			if (typeof extra.index !== 'undefined') {
+				program.index = extra.index;
+			}
         } catch (e) {
             throw e;
         } finally {
