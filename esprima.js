@@ -1768,6 +1768,8 @@ parseYieldExpression: true, parseAwaitExpression: true
                 }
             };
             node = delegate.postProcess(node);
+        } else if (extra.counts) {
+            node = delegate.postProcess(node);
         }
         if (extra.attachComment) {
             processComment(node);
@@ -7657,23 +7659,35 @@ parseYieldExpression: true, parseAwaitExpression: true
                 });
             }
 
-			if (options.index) {
-				extra.index = {};
-				var indexDelegateMethods = {};
-				for (var i = 0, len = options.index.length; i < len; i++) {
-					var indexedType = options.index[i];
-					var createMethodName = 'create' + indexedType;
-					extra.index[indexedType] = [];
-					indexDelegateMethods[createMethodName] = (function(createNode) {
-						return function() {
-							var node = createNode.apply(this, arguments);
-							extra.index[node.type].push(node);
-							return node;
-						};
-					})(delegate[createMethodName]);
-				}
-				delegate = extend(delegate, indexDelegateMethods);
-			}
+            if ((typeof options.counts === 'boolean') && options.counts) {
+                extra.counts = options.counts;
+                delegate = extend(delegate, {
+                    'postProcess': (function(postProcess) {
+                        return function(node) {
+                            node.counts = countsForNode(node);
+                            return postProcess(node);
+                        };
+                    })(delegate['postProcess'])
+                });
+            }
+
+            if (options.index) {
+                extra.index = {};
+                var indexDelegateMethods = {};
+                for (var i = 0, len = options.index.length; i < len; i++) {
+                    var indexedType = options.index[i];
+                    var createMethodName = 'create' + indexedType;
+                    extra.index[indexedType] = [];
+                    indexDelegateMethods[createMethodName] = (function(createNode) {
+                        return function() {
+                            var node = createNode.apply(this, arguments);
+                            extra.index[node.type].push(node);
+                            return node;
+                        };
+                    })(delegate[createMethodName]);
+                }
+                delegate = extend(delegate, indexDelegateMethods);
+            }
 
             if (options.sourceType === 'module') {
                 extra.isModule = true;
@@ -7709,9 +7723,9 @@ parseYieldExpression: true, parseAwaitExpression: true
             if (typeof extra.errors !== 'undefined') {
                 program.errors = extra.errors;
             }
-			if (typeof extra.index !== 'undefined') {
-				program.index = extra.index;
-			}
+            if (typeof extra.index !== 'undefined') {
+                program.index = extra.index;
+            }
         } catch (e) {
             throw e;
         } finally {
@@ -7720,6 +7734,49 @@ parseYieldExpression: true, parseAwaitExpression: true
         }
 
         return program;
+    }
+
+    function countsForNode(node) {
+        if (node.counts) { return node.counts; }
+
+        var counts = {};
+
+        function addCounts(c) {
+            for (var type in c) {
+                if (!(type in counts)) {
+                    counts[type] = c[type];
+                } else {
+                    counts[type] += c[type];
+                }
+            }
+        }
+
+        function incrementCount(type) {
+            var added = {};
+            added[type] = 1;
+            addCounts(added);
+        }
+
+        for (var key in node) {
+            var value = node[key];
+            if (node[key]) {
+                if (value.type) {
+                    addCounts(countsForNode(value));
+                    incrementCount(value.type);
+                } else if (isArray(value)) {
+                    for (var i = 0, len = value.length; i < len; i++) {
+                        addCounts(countsForNode(value[i]));
+                        incrementCount(value[i].type);
+                    }
+                }
+            }
+        }
+
+        return counts;
+    }
+
+    function isArray(object) {
+        return Object.prototype.toString.call(object) === '[object Array]';
     }
 
     // Sync with *.json manifests.
